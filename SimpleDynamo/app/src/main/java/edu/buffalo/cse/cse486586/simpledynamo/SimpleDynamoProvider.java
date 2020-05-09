@@ -345,9 +345,6 @@ public class SimpleDynamoProvider extends ContentProvider {
 		clientPort=Integer.parseInt(myPort);
 		failedAVD=true;
 		new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,myPort+":"+"JOIN");
-//		while (failedAVD){
-//
-//		}
 		if(flag.get()){
 			try {
 				Thread.sleep(100);
@@ -582,11 +579,10 @@ public class SimpleDynamoProvider extends ContentProvider {
 											queryResult += serverCursor1.getString(serverCursor1.getColumnIndex(KeyValueTableContract.KeyValueTableEntry.COLUMN_NAME_VALUE)) + "%";
 										} while (serverCursor1.moveToNext());
 										inputQuery = queryResult.substring(0, queryResult.length() - 1);
-										outputStream.writeUTF(inputQuery);
+										byte[] data=inputQuery.getBytes("UTF-8");
+										outputStream.writeInt(data.length);
+										outputStream.write(data);
 									}
-//									if(inputQuery.equals("") || inputQuery.equals(" ") || inputQuery.equals(null)){
-//										inputQuery="Dummy";
-//									}
 								}
 								outputStream.flush();
 							}
@@ -791,8 +787,11 @@ public class SimpleDynamoProvider extends ContentProvider {
 								outputStream.writeUTF(outputToServer);
 								outputStream.flush();
 								DataInputStream inputStream = new DataInputStream(socket.getInputStream());
-								String query = inputStream.readUTF();
-								//Log.d("Received String", query);
+								int length=inputStream.readInt();
+								byte[] data=new byte[length];
+								inputStream.readFully(data);
+								String query=new String(data,"UTF-8");
+								Log.d("Received String", query);
 								if (!query.equals("Dummy")) {
 									outputQuery += query + "@";
 								}
