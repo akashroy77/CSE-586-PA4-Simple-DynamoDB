@@ -48,7 +48,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 	Cursor cursor=null;
 	String outputQuery="";
 	AtomicBoolean flag=new AtomicBoolean(true);
-	boolean failedAVD;
+	AtomicBoolean failedAVD=new AtomicBoolean(false);
 
 	public HashMap<String,List<String[]>>getChordDetails(int emulator){
 		HashMap<String,List<String[]>> chordMap=new HashMap<String, List<String[]>>();
@@ -111,36 +111,28 @@ public class SimpleDynamoProvider extends ContentProvider {
 
 	private int whereTo(String key){
 		HashMap<String,List<String[]>> chordMap;
-		String rightPartition=" ";
+		String belongsTome=" ";
 		List<String[]> succAndPred;
 		try {
 			String keyhash=genHash(key);
-			if(keyhash.compareTo(genHash("5560"))>0||keyhash.compareTo(genHash("5562"))<=0){
-				rightPartition = "5562";
+			if(edgeLocation(keyhash)){
+				belongsTome =Integer.toString(emulators[4]);
+				return Integer.parseInt(belongsTome);
 			}
-			else if(keyhash.compareTo(genHash("5562"))>0&&keyhash.compareTo(genHash("5556"))<=0){
-				rightPartition = "5556";
+			else {
+			for(int i:emulators){
+				chordMap=getChordDetails(i);
+				succAndPred=chordMap.get(Integer.toString(i));
+				String[] predecessor=succAndPred.get(1);
+				Log.d("Insert",predecessor[0]);
+				String pred=predecessor[0];
+				if(keyhash.compareTo(genHash(pred))>0 && keyhash.compareTo(genHash(Integer.toString(i)))<=0){
+					belongsTome=Integer.toString(i);
+					return Integer.parseInt(belongsTome);
+				}
 			}
-			else if(keyhash.compareTo(genHash("5556"))>0&&keyhash.compareTo(genHash("5554"))<=0){
-				rightPartition = "5554";
 			}
-			else if(keyhash.compareTo(genHash("5554"))>0&&keyhash.compareTo(genHash("5558"))<=0){
-				rightPartition = "5558";
-			}
-			else if(keyhash.compareTo(genHash("5558"))>0&&keyhash.compareTo(genHash("5560"))<=0){
-				rightPartition = "5560";
-			}
-			return Integer.parseInt(rightPartition);
-//			for(int i:emulators){
-//				chordMap=getChordDetails(i);
-//				succAndPred=chordMap.get(Integer.toString(i));
-//				String[] predecessor=succAndPred.get(1);
-//				Log.d("Insert",predecessor[0]);
-//				String pred=predecessor[0];
-//				if(hashedKey.compareTo(genHash(pred))>0 && hashedKey.compareTo(genHash(Integer.toString(i)))<=0){
-//					return i;
-//				}
-//			}
+
 		}
 		catch (Exception ex){
 			ex.printStackTrace();
@@ -148,11 +140,29 @@ public class SimpleDynamoProvider extends ContentProvider {
 		return 0;
 	}
 
+	private boolean edgeLocation(String keyhash) throws NoSuchAlgorithmException {
+		if(keyhash.compareTo(genHash("5560"))>0||keyhash.compareTo(genHash("5562"))<=0){
+			return true;
+		}
+		return false;
+	}
+
+	private void semaUp(){
+				try {
+					while (failedAVD.get()){
+						Thread.sleep(100);
+					}
+				} catch (Exception ex) {
+					ex.printStackTrace();
+				}
+			}
+
 	@Override
 	public synchronized int delete(Uri uri, String selection, String[] selectionArgs) {
 		// TODO Auto-generated method stub
 		// Gets the data repository in write mode
 		// https://stackoverflow.com/questions/9599741/how-to-delete-all-records-from-table-in-sqlite-with-android
+		semaUp();
 		SQLiteDatabase db = dbHelper.getWritableDatabase();
 		int response=0;
 		if(selection.equals(local_identifier)){
@@ -240,7 +250,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 		 * take a look at the code for PA1.
 		 */
 		// Gets the data repository in write mode
-		while (failedAVD);
+		semaUp();
 		try {
 			HashMap<String, List<String[]>> chordMap;
 			List<String[]> succAndPred;
@@ -343,16 +353,8 @@ public class SimpleDynamoProvider extends ContentProvider {
 		//Log.d("AVD",portStr);
 		final String myPort = String.valueOf((Integer.parseInt(portStr) * 2));
 		clientPort=Integer.parseInt(myPort);
-		failedAVD=true;
+		failedAVD.set(true);
 		new ClientTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,myPort+":"+"JOIN");
-		if(flag.get()){
-			try {
-				Thread.sleep(100);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
-		//Log.d("On Create","Not in Failure");
 		return false;
 	}
 
@@ -361,7 +363,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 									 String[] selectionArgs, String sortOrder) {
 		// TODO Auto-generated method stub
 		//https://developer.android.com/training/data-storage/sqlite.html
-		while (failedAVD);
+		semaUp();
 		SQLiteDatabase db = dbHelper.getReadableDatabase();
 		SQLiteQueryBuilder queryBuilder=new SQLiteQueryBuilder();
 		queryBuilder.setTables(KeyValueTableContract.KeyValueTableEntry.TABLE_NAME);
@@ -431,7 +433,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 					if (flag.get()) {
 						//Log.d("Waiting", Boolean.toString(flag.get()));
 						//Log.d("Wait","Waiting Here");
-						Thread.sleep(2000);
+						Thread.sleep(3000);
 					}
 				}
 				catch (Exception ex){
@@ -517,7 +519,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 											}
 										} while (serverCursor.moveToNext());
 									}
-									inputQuery=hashMapToString(keyValue);
+									inputQuery=sendString(keyValue);
 									//Log.d("Server",inputQuery);
 									if(!inputQuery.equals("") && !inputQuery.equals(" ") && !inputQuery.equals(null)){
 										inputQuery = inputQuery;
@@ -565,7 +567,6 @@ public class SimpleDynamoProvider extends ContentProvider {
 									Cursor serverCursor1;
 									serverCursor1 = db.query(KeyValueTableContract.KeyValueTableEntry.TABLE_NAME, null, null, null, null, null, null, null);
 									serverCursor1.moveToFirst();
-									//serverCursor1=query(providerUri,null,"@",null,null,null);
 									//Log.d("Server Response", DatabaseUtils.dumpCursorToString(serverCursor1));
 									//Log.d("Response", DatabaseUtils.dumpCursorToString(serverCursor));
 									//https://stackoverflow.com/questions/7420783/androids-sqlite-how-to-turn-cursors-into-strings
@@ -579,6 +580,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 											queryResult += serverCursor1.getString(serverCursor1.getColumnIndex(KeyValueTableContract.KeyValueTableEntry.COLUMN_NAME_VALUE)) + "%";
 										} while (serverCursor1.moveToNext());
 										inputQuery = queryResult.substring(0, queryResult.length() - 1);
+										//https://stackoverflow.com/questions/270884/writing-large-strings-with-dataoutputstream
 										byte[] data=inputQuery.getBytes("UTF-8");
 										outputStream.writeInt(data.length);
 										outputStream.write(data);
@@ -613,7 +615,7 @@ public class SimpleDynamoProvider extends ContentProvider {
 												keyValue.put(key, value);
 											} while (serverCursor.moveToNext());
 										}
-										inputQuery = hashMapToString(keyValue);
+										inputQuery = sendString(keyValue);
 										outputStream.writeUTF(inputQuery);
 										//Log.d("Final", inputQuery);
 									}
@@ -650,19 +652,20 @@ public class SimpleDynamoProvider extends ContentProvider {
 			return null;
 		}
 	}
-	private String hashMapToString(ConcurrentHashMap<String, String> hashMap){
-		String hashMapStr = "";
+	//https://stackoverflow.com/questions/51783068/convert-hashmap-into-string-with-keys-and-values
+	private String sendString(ConcurrentHashMap<String, String> hashMap){
+		String queryResult = "";
 		String modifiedString="";
 
 		if(hashMap == null){
-			return  hashMapStr;
+			return  queryResult;
 		}
 		for (Map.Entry<String, String> entry : hashMap.entrySet()) {
-			hashMapStr += entry.getKey()+ "//";
-			hashMapStr += entry.getValue()+ "%%";
+			queryResult += entry.getKey()+ "//";
+			queryResult += entry.getValue()+ "%%";
 		}
-		if(!hashMapStr.equals("") && !hashMapStr.equals(" ") && !hashMapStr.equals(null)) {
-			modifiedString=hashMapStr.substring(0, hashMapStr.length() - 2);
+		if(!queryResult.equals("") && !queryResult.equals(" ") && !queryResult.equals(null)) {
+			modifiedString=queryResult.substring(0, queryResult.length() - 2);
 		}
 		return modifiedString;
 	}
@@ -705,9 +708,6 @@ public class SimpleDynamoProvider extends ContentProvider {
 						query = inputStream.readUTF();
 						//Log.d("From",query+" "+port);
 						synchronized (this){
-							Cursor test;
-							test= db.query(KeyValueTableContract.KeyValueTableEntry.TABLE_NAME, null, null, null, null, null, null, null);
-							//Log.d("Server Response", DatabaseUtils.dumpCursorToString(test));
 							if (!query.equals(null) && !query.equals(" ") && !query.equals("") && !query.equals("Dummy")) {
 								String keyValue[] = query.split("%%");
 								for (String subentry : keyValue) {
@@ -728,37 +728,19 @@ public class SimpleDynamoProvider extends ContentProvider {
 								}
 							}
 						}
-						Cursor test1;
-						test1= db.query(KeyValueTableContract.KeyValueTableEntry.TABLE_NAME, null, null, null, null, null, null, null);
-						//Log.d("Server Response", DatabaseUtils.dumpCursorToString(test1));
-						failedAVD=false;
+						failedAVD.set(false);
 					}
 					//Log.d("Client","Here");
 				}
 				catch (EOFException ex){
 					//Log.d("Error","End of File");
-					failedAVD=false;
+					failedAVD.set(false);
 				}
 				catch (Exception ex){
 					ex.printStackTrace();
 				}
 			}
 			else if(operation.equals(operations[1])){
-				try {
-					String fromClient=messages[2];
-					int sendingPort=Integer.parseInt(fromClient)*2;
-					//Log.d("Client",fromClient);
-					Socket socket = new Socket(InetAddress.getByAddress(new byte[]{10, 0, 2, 2}), sendingPort);
-					DataOutputStream outputStream=new DataOutputStream(socket.getOutputStream());
-					String outputToServer=requested_message;
-					//Log.d("Client Sending String",outputToServer);
-					outputStream.writeUTF(outputToServer);
-				}
-				catch (Exception ex){
-					ex.printStackTrace();
-				}
-			}
-			else if(operation.equals(operations[6])){
 				try {
 					String fromClient=messages[2];
 					int sendingPort=Integer.parseInt(fromClient)*2;
